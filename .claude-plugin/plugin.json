@@ -4,10 +4,11 @@
   "version": "2.1.0",
   "description": "Routes each coding subtask to the cheapest Claude model and effort that can do it reliably, logs real token cost per subagent automatically, and learns routing boundaries from verified runs.",
   "author": {
-    "name": "Kevin Bosteels"
+    "name": "DevstateBelgium",
+    "url": "https://github.com/DevstateBelgium"
   },
-  "homepage": "https://github.com/devstatebelgium/model-router",
-  "repository": "https://github.com/devstatebelgium/model-router",
+  "homepage": "https://github.com/DevstateBelgium/model-router",
+  "repository": "https://github.com/DevstateBelgium/model-router",
   "license": "MIT",
   "keywords": ["routing", "subagents", "cost", "orchestration", "models"],
   "types": "./types/index.d.ts",

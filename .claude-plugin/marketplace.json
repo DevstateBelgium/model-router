@@ -1,7 +1,8 @@
 {
   "name": "model-router",
   "owner": {
-    "name": "Kevin Bosteels"
+    "name": "DevstateBelgium",
+    "url": "https://github.com/DevstateBelgium"
   },
   "description": "Model Router plugin: cost-aware subagent routing for Claude Code.",
   "plugins": [

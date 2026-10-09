@@ -6,24 +6,24 @@ A Claude Code plugin that routes each coding subtask to the cheapest Claude mode
 
 **1. From the marketplace (recommended, gets updates).** At the Claude Code prompt:
 ```
-/plugin install model-router --marketplace devstatebelgium/model-router
+/plugin install model-router --marketplace DevstateBelgium/model-router
 ```
 Answer `y` to add the marketplace, then pick a scope. Or in two steps:
 ```
-/plugin marketplace add devstatebelgium/model-router
+/plugin marketplace add DevstateBelgium/model-router
 /plugin install model-router@model-router
 ```
 
 **2. Drop-in, zero commands.** Clone this repo into `~/.claude/skills/model-router/` (Windows: `%USERPROFILE%\.claude\skills\model-router\`) and start a new session:
 ```
-git clone https://github.com/devstatebelgium/model-router ~/.claude/skills/model-router
+git clone https://github.com/DevstateBelgium/model-router ~/.claude/skills/model-router
 ```
 Claude Code loads any folder there that has `.claude-plugin/plugin.json` as a plugin (`model-router@skills-dir`), including its agents and hooks.
 
 **3. Whole team, per repository.** Commit this to the project's `.claude/settings.json`. Teammates get it after they trust the folder:
 ```json
 {
-  "extraKnownMarketplaces": { "model-router": { "source": { "source": "github", "repo": "devstatebelgium/model-router" } } },
+  "extraKnownMarketplaces": { "model-router": { "source": { "source": "github", "repo": "DevstateBelgium/model-router" } } },
   "enabledPlugins": { "model-router@model-router": true }
 }
 ```
