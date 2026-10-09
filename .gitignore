@@ -1,0 +1,3 @@
+# Written by Claude Code for the running build when it loads the mod
+.claude-plugin/types/
+tsconfig.json

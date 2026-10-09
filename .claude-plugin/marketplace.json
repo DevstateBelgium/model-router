@@ -1,0 +1,14 @@
+{
+  "name": "model-router",
+  "owner": {
+    "name": "Kevin Bosteels"
+  },
+  "description": "Model Router plugin: cost-aware subagent routing for Claude Code.",
+  "plugins": [
+    {
+      "name": "model-router",
+      "source": "./",
+      "description": "Routes each coding subtask to the cheapest Claude model and effort that can do it reliably, and learns from verified runs."
+    }
+  ]
+}
