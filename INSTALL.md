@@ -10,8 +10,9 @@ Install model-router with its own installer. It works the same on Windows, macOS
    - `--scope project` installs into the current repository's `.claude/skills/` instead of the user's `~/.claude/skills/`. Use it only when the user asks.
    - If it exits with code 2, an install already exists: tell the user its version, and re-run with `--force` only after they confirm. The old copy is kept as a backup.
 3. Read the installer's output and act on it:
-   - **live skill / live agents hot-loaded**: they are usable from your next step: the `model-router-live` skill and the agents `model-router-scout`, `-builder`, `-engineer`, `-senior` and `-architect`.
-   - **NOT hot-loaded**: read the skill file it names and follow it for this session; use `general-purpose` with the tier's model ID instead of the tier agents.
+   - **live skill hot-loaded**: the `model-router-live` skill is usable from your next step. Its "Live mode" note says how to reach the tiers.
+   - **live tiers**: either agents (`subagent_type` `model-router-scout` and so on) or forked skills (Skill tool `model-router-scout` with the brief as argument). The output says which.
+   - **NOT hot-loaded**: read the skill file it names and follow it for this session; use `general-purpose` with the tier's model ID instead of the tiers.
    - **NEXT**: run the first-run configuration it describes now.
    - **CLOUD**: pass the setup-script line on to the user.
 4. Tell the user in two or three lines what is active now and what becomes active at the next session start or after `/reload-plugins`: hooks, automatic telemetry, the mod with `/router`, and the `/model-router:*` commands.
