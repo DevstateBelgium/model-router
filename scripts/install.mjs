@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { SHIM_MARKER, SHIM_SKILL_DIR, TIERS, arg } from './lib.mjs';
+import { SHIM_MARKER, SHIM_SKILL_DIR, TIERS, arg, removeShims } from './lib.mjs';
 
 const SOURCE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SKIP = new Set(['.git', 'node_modules', 'tsconfig.json']);
@@ -54,10 +54,12 @@ if (path.resolve(SOURCE) === path.resolve(target)) {
   if (fs.existsSync(target)) {
     if (!force) {
       const existing = JSON.parse(fs.readFileSync(path.join(target, '.claude-plugin', 'plugin.json'), 'utf8')).version;
-      console.log(`${fwd(target)} already exists (version ${existing}). Re-run with --force to replace it; the old copy is kept as model-router.bak-<time>.`);
+      console.log(`${fwd(target)} already exists (version ${existing}). Re-run with --force to replace it; the old copy is moved to ${fwd(path.join(claudeDir, 'backups'))}/.`);
       process.exit(2);
     }
-    const backup = `${target}.bak-${Date.now()}`;
+    // Outside skills/: a copy left there would load as a second plugin with the same name.
+    const backup = path.join(claudeDir, 'backups', `model-router-${Date.now()}`);
+    fs.mkdirSync(path.dirname(backup), { recursive: true });
     fs.renameSync(target, backup);
     out.push(`previous install moved to ${fwd(backup)}`);
   }
@@ -115,32 +117,73 @@ Automatic telemetry is off in live mode, so the rows you log in \`pending-runs.m
   return withMarker(text);
 }
 
-const shims = { skill: null, agents: null };
+function frontmatter(markdown, key) {
+  return markdown.match(new RegExp(`^${key}: (.*)$`, 'm'))?.[1]?.trim() ?? '';
+}
+
+// A forked skill runs in a subagent on its own model and effort, so it stands in for an agent
+// where only the skills folder is watched (cloud sessions start without ~/.claude/agents).
+function tierSkill(tier) {
+  const src = fs.readFileSync(path.join(target, 'agents', `${tier}.md`), 'utf8');
+  const body = src.replace(/^---[\s\S]*?\n---\r?\n/, '').trim();
+  return withMarker(`---
+name: model-router-${tier}
+description: ${frontmatter(src, 'description').replace('Use only through the model-router skill.', 'Runs as a forked subagent; invoke through the Skill tool with a self-contained brief as the argument. Live install only.')}
+context: fork
+agent: general-purpose
+model: ${frontmatter(src, 'model')}
+effort: ${frontmatter(src, 'effort')}
+background: false
+---
+
+${body}
+
+## Your brief
+
+$ARGUMENTS
+`);
+}
+
+const LIVE_NOTES = {
+  agents: 'Tiers in this session are agents: spawn them with `subagent_type` `model-router-<tier>`.',
+  skills:
+    'Tiers in this session are forked skills, not agents: call the Skill tool with skill `model-router-<tier>` and the complete brief as its argument. Each runs in its own subagent on the pinned model and effort and returns its report. Read every "spawn"/"subagent_type" instruction below that way.',
+  none: 'Tier agents are not available in this session: use `general-purpose` with the tier\'s model ID in `model` (effort stays the default) and log the effort as `default`.',
+};
+
 if (live) {
+  removeShims([path.join(home, '.claude'), path.join(projectDir, '.claude')]);
   const skillDir = pickDir('skills');
+  const agentDir = pickDir('agents');
+  const tierMode = agentDir.isLive ? 'agents' : skillDir.isLive ? 'skills' : 'none';
+
   const skillFile = path.join(skillDir.dir, SHIM_SKILL_DIR, 'SKILL.md');
   fs.mkdirSync(path.dirname(skillFile), { recursive: true });
-  fs.writeFileSync(skillFile, renderSkill());
-  shims.skill = { file: fwd(skillFile), isLive: skillDir.isLive };
+  fs.writeFileSync(skillFile, renderSkill().replace(/\n# Model Router\n/, `\n# Model Router\n\n> Live mode: ${LIVE_NOTES[tierMode]}\n`));
+  out.push(
+    skillDir.isLive
+      ? `live skill: ${fwd(skillFile)} (hot-loaded as /${SHIM_SKILL_DIR} within seconds)`
+      : `live skill: ${fwd(skillFile)} written, but its directory did not exist at session start, so it is NOT hot-loaded. Read that file and follow it for this session.`,
+  );
 
-  const agentDir = pickDir('agents');
-  fs.mkdirSync(agentDir.dir, { recursive: true });
-  for (const tier of TIERS) {
-    const src = fs.readFileSync(path.join(target, 'agents', `${tier}.md`), 'utf8');
-    fs.writeFileSync(path.join(agentDir.dir, `model-router-${tier}.md`), withMarker(src.replace(/^name: .*$/m, `name: model-router-${tier}`)));
+  if (tierMode === 'agents') {
+    for (const tier of TIERS) {
+      const src = fs.readFileSync(path.join(target, 'agents', `${tier}.md`), 'utf8');
+      fs.writeFileSync(path.join(agentDir.dir, `model-router-${tier}.md`), withMarker(src.replace(/^name: .*$/m, `name: model-router-${tier}`)));
+    }
+    out.push(`live tiers: agents model-router-scout, -builder, -engineer, -senior, -architect in ${fwd(agentDir.dir)} (hot-loaded; model and effort pinned)`);
+  } else if (tierMode === 'skills') {
+    for (const tier of TIERS) {
+      const file = path.join(skillDir.dir, `model-router-${tier}`, 'SKILL.md');
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, tierSkill(tier));
+    }
+    out.push(
+      `live tiers: no agents folder was watched at session start, so the tiers are forked skills model-router-scout, -builder, -engineer, -senior, -architect in ${fwd(skillDir.dir)} (hot-loaded; each runs as a subagent with its model and effort pinned). Invoke them with the Skill tool.`,
+    );
+  } else {
+    out.push(`live tiers: neither an agents nor a skills folder was watched at session start. ${LIVE_NOTES.none}`);
   }
-  shims.agents = { dir: fwd(agentDir.dir), isLive: agentDir.isLive };
-
-  out.push(
-    shims.skill.isLive
-      ? `live skill: ${shims.skill.file} (hot-loaded as /${SHIM_SKILL_DIR} within seconds)`
-      : `live skill: ${shims.skill.file} written, but its directory did not exist at session start, so it is NOT hot-loaded. Read that file and follow it for this session.`,
-  );
-  out.push(
-    shims.agents.isLive
-      ? `live agents: model-router-scout, -builder, -engineer, -senior, -architect in ${shims.agents.dir} (hot-loaded, model and effort pinned)`
-      : `live agents: written to ${shims.agents.dir}, but that directory did not exist at session start, so they are NOT hot-loaded. Use general-purpose with the tier's model ID until the next session.`,
-  );
 }
 
 console.log(out.join('\n'));

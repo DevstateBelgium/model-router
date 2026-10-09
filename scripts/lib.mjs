@@ -96,6 +96,7 @@ export function shimPaths(claudeDir) {
   return [
     path.join(claudeDir, 'skills', SHIM_SKILL_DIR, 'SKILL.md'),
     ...TIERS.map((t) => path.join(claudeDir, 'agents', `model-router-${t}.md`)),
+    ...TIERS.map((t) => path.join(claudeDir, 'skills', `model-router-${t}`, 'SKILL.md')),
   ];
 }
 
@@ -114,7 +115,7 @@ export function removeShims(claudeDirs) {
       fs.rmSync(file);
       removed.push(file);
       const parent = path.dirname(file);
-      if (path.basename(parent) === SHIM_SKILL_DIR && fs.readdirSync(parent).length === 0) fs.rmdirSync(parent);
+      if (path.basename(path.dirname(parent)) === 'skills' && fs.readdirSync(parent).length === 0) fs.rmdirSync(parent);
     }
   }
   return removed;
