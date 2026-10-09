@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from 'claude-code/testing'
 import type { AgentSpawnInput } from 'claude-code'
 
-import { FIRST_RUN_PROMPT, addUsage, costOf, priceFor, summaryLine, table } from '../hooks/router'
+import { AUTO_LOAD, AUTO_REMIND, FIRST_RUN_PROMPT, addUsage, costOf, priceFor, summaryLine, table } from '../hooks/router'
 
 const spawnInput = (subagentType: string, model?: string): AgentSpawnInput => ({
   tool_use_id: 'tu-1',
@@ -134,5 +134,69 @@ describe('/model-router', () => {
     await $.command.run({ command: 'model-router', args: 'add tests for utils' })
     await clock.advance(10)
     expect(ran).toEqual([{ command: 'model-router:run', args: 'add tests for utils' }])
+  })
+})
+
+describe('automatic mode', () => {
+  const composer = { kind: 'composer' } as const
+  const capture = (on: Parameters<Parameters<typeof test>[1]>[1]) => {
+    const seen: (readonly string[] | undefined)[] = []
+    on('prompt.submit', ($, e) => {
+      seen.push(e.context)
+      return { text: e.text }
+    })
+    return seen
+  }
+
+  test('start adds the skill to typed prompts, once in full, then as a reminder', async ($, on) => {
+    const seen = capture(on)
+    const { text } = await $.command.run({ command: 'model-router:start' })
+    expect(text).toContain('Automatic mode on')
+    await $.prompt.submit({ text: 'fix the flaky test', wait: false, origin: composer })
+    await $.prompt.submit({ text: 'now add docs', wait: false, origin: composer })
+    expect(seen).toEqual([[AUTO_LOAD], [AUTO_REMIND]])
+  })
+
+  test('stop turns it off', async ($, on) => {
+    const seen = capture(on)
+    await $.command.run({ command: 'model-router:start' })
+    await $.command.run({ command: 'model-router:stop' })
+    await $.prompt.submit({ text: 'fix the flaky test', wait: false, origin: composer })
+    expect(seen).toEqual([undefined])
+  })
+
+  test('leaves slash commands and plugin prompts alone', async ($, on) => {
+    const seen: string[] = []
+    on('prompt.submit', ($, e) => {
+      seen.push(`${e.text}:${e.context?.length ?? 0}`)
+      return { text: e.text }
+    })
+    await $.command.run({ command: 'model-router:start' })
+    await $.prompt.submit({ text: '/model-router:stats', wait: false, origin: composer })
+    await $.prompt.submit({ text: 'from a plugin', wait: false, origin: { kind: 'plugin', name: 'other' } })
+    expect(seen).toEqual(['/model-router:stats:0', 'from a plugin:0'])
+  })
+
+  test('session.start turns it off', async ($, on) => {
+    const seen = capture(on)
+    on('session.start', ($, e) => ({ cwd: e.cwd }))
+    await $.command.run({ command: 'model-router:start' })
+    await $.session.start({ cwd: '/tmp/p', surface: null, isInteractive: false })
+    await $.prompt.submit({ text: 'fix the flaky test', wait: false, origin: composer })
+    expect(seen).toEqual([undefined])
+  })
+
+  test('/model-router does not change the mode', async ($, on) => {
+    const clock = mock.clock(on)
+    const seen = capture(on)
+    on('command.run', () => ({}))
+    await $.command.run({ command: 'model-router', args: 'one task' })
+    await clock.advance(10)
+    await $.prompt.submit({ text: 'still manual', wait: false, origin: composer })
+    await $.command.run({ command: 'model-router:start' })
+    await $.command.run({ command: 'model-router', args: 'one task' })
+    await clock.advance(10)
+    await $.prompt.submit({ text: 'still automatic', wait: false, origin: composer })
+    expect(seen).toEqual([undefined, [AUTO_LOAD]])
   })
 })
