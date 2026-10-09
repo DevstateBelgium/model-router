@@ -1,7 +1,7 @@
-import { describe, expect, test } from 'claude-code/testing'
+import { describe, expect, mock, test } from 'claude-code/testing'
 import type { AgentSpawnInput } from 'claude-code'
 
-import { addUsage, costOf, priceFor, summaryLine, table } from '../hooks/router'
+import { FIRST_RUN_PROMPT, addUsage, costOf, priceFor, summaryLine, table } from '../hooks/router'
 
 const spawnInput = (subagentType: string, model?: string): AgentSpawnInput => ({
   tool_use_id: 'tu-1',
@@ -77,6 +77,27 @@ describe('turn.step', () => {
     for await (const _ of $.turn.step({ turnId: 't2', index: 0, model: 'claude-haiku-5-5', messageCount: 1, agentId: 'ag-9' })) void _
     // Prices are not loaded without session.start, so amounts are 0; the tier split is what matters.
     expect(lines).toEqual(['router $0.000 · subagents $0.000', 'router $0.000 · subagents $0.000 (1 tier)'])
+  })
+})
+
+describe('first run', () => {
+  test('queues the configuration prompt once, in interactive sessions only', async ($, on) => {
+    const clock = mock.clock(on)
+    mock.store(on)
+    const submitted: string[] = []
+    on('prompt.submit', ($, e) => {
+      submitted.push(e.text)
+      return { text: e.text }
+    })
+    on('session.start', ($, e) => ({ cwd: e.cwd }))
+    await $.session.start({ cwd: '/tmp/p', surface: null, isInteractive: false })
+    await clock.advance(1000)
+    expect(submitted.length).toBe(0)
+    await $.session.start({ cwd: '/tmp/p', surface: 'terminal', isInteractive: true })
+    await clock.advance(1000)
+    await $.session.start({ cwd: '/tmp/p', surface: 'terminal', isInteractive: true })
+    await clock.advance(1000)
+    expect(submitted).toEqual([FIRST_RUN_PROMPT])
   })
 })
 

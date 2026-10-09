@@ -1,13 +1,20 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { DATA, bootstrap, knowledgeRepo, readJson, readStdinJson, tableRows, daysSince } from './lib.mjs';
+import { DATA, bootstrap, knowledgeRepo, readJson, readStdinJson, removeShims, tableRows, daysSince } from './lib.mjs';
 
 try {
-  await readStdinJson();
+  const input = await readStdinJson();
   const created = bootstrap();
+  const firstRun = created.includes('state.json');
   const state = readJson(path.join(DATA, 'state.json'), {});
   const repo = knowledgeRepo();
   const pending = tableRows(path.join(DATA, 'pending-runs.md')).length;
+
+  // The plugin is loaded now, so the live-install shims would only duplicate its skill and agents.
+  const shimDirs = [path.join(os.homedir(), '.claude')];
+  if (input.cwd) shimDirs.push(path.join(input.cwd, '.claude'));
+  const removedShims = process.env.CLAUDE_PLUGIN_ROOT ? removeShims(shimDirs) : [];
 
   let boundaries = [];
   try {
@@ -23,8 +30,17 @@ try {
   ];
   if (boundaries.length) lines.push(...boundaries.slice(0, 10));
 
+  if (!state.configuredAt) {
+    lines.push(
+      firstRun
+        ? 'FIRST RUN: model-router was just installed and is not configured. Unless /model-router:setup already ran in this session, invoke the model-router:setup skill at the start of your next reply, then continue with what the user asked.'
+        : 'model-router setup was never completed. Offer /model-router:setup once, in one line, when it fits.',
+    );
+  }
+
   const notes = [];
-  if (created.length) notes.push(`first run: seeded ${created.join(', ')}`);
+  if (created.length) notes.push(`seeded ${created.join(', ')}`);
+  if (removedShims.length) notes.push(`removed ${removedShims.length} live-install shim file(s); the plugin's own skill and agents are active`);
   if (repo && daysSince(state.lastPull) > 7) notes.push('mirror may be stale, suggest /model-router:pull once');
   if (daysSince(state.lastModelCheck) > 30) notes.push('last model check is over 30 days old, run the "New models" check');
   if (pending && process.env.CLAUDE_CODE_REMOTE === 'true')

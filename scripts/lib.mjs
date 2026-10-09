@@ -86,6 +86,40 @@ export function tableRows(file) {
     .filter((l) => l.startsWith('|') && !/^\|\s*-/.test(l) && !/^\|\s*id\s*\|/i.test(l));
 }
 
+export const TIERS = ['scout', 'builder', 'engineer', 'senior', 'architect'];
+
+// Plain copies of the skill and agents that Claude Code hot-loads, used until the plugin itself loads.
+export const SHIM_MARKER = 'generated-by: model-router-live-shim';
+export const SHIM_SKILL_DIR = 'model-router-live';
+
+export function shimPaths(claudeDir) {
+  return [
+    path.join(claudeDir, 'skills', SHIM_SKILL_DIR, 'SKILL.md'),
+    ...TIERS.map((t) => path.join(claudeDir, 'agents', `model-router-${t}.md`)),
+  ];
+}
+
+// Deletes only files carrying the marker, so a user's own files with similar names survive.
+export function removeShims(claudeDirs) {
+  const removed = [];
+  for (const dir of claudeDirs) {
+    for (const file of shimPaths(dir)) {
+      let text;
+      try {
+        text = fs.readFileSync(file, 'utf8');
+      } catch {
+        continue;
+      }
+      if (!text.includes(SHIM_MARKER)) continue;
+      fs.rmSync(file);
+      removed.push(file);
+      const parent = path.dirname(file);
+      if (path.basename(parent) === SHIM_SKILL_DIR && fs.readdirSync(parent).length === 0) fs.rmdirSync(parent);
+    }
+  }
+  return removed;
+}
+
 export function daysSince(iso) {
   if (!iso) return Infinity;
   const t = Date.parse(iso);

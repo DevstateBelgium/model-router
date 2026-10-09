@@ -1,7 +1,7 @@
 {
   "name": "model-router",
   "displayName": "Model Router",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Routes each coding subtask to the cheapest Claude model and effort that can do it reliably, logs real token cost per subagent automatically, and learns routing boundaries from verified runs.",
   "author": {
     "name": "DevstateBelgium",

@@ -9,6 +9,9 @@ type Usage = { model: string; input_tokens: number; output_tokens: number; cache
 const PANE = 'model-router'
 const HISTORY_KEY = 'history'
 const HISTORY_MAX = 200
+const SETUP_KEY = 'setupStartedAt'
+export const FIRST_RUN_PROMPT =
+  'model-router was just installed. Run its first-run configuration now by invoking the model-router:setup skill, then tell me in one line what was set up.'
 const totals = atom({ plugin: 'model-router', key: 'totals' } as const, {})
 const agents = atom({ plugin: 'model-router', key: 'agents' } as const, {})
 const overrides = atom({ plugin: 'model-router', key: 'overrides' } as const, 0)
@@ -78,7 +81,17 @@ export const register: Register = on => {
     } catch {
       prices = {}
     }
-    await $.command.register({ name: 'router', description: 'model-router: live cost per tier for this session and the last 7 days' })
+    try {
+      await $.command.register({ name: 'router', description: 'model-router: live cost per tier for this session and the last 7 days' })
+    } catch {}
+    // First load in an interactive session (install, enable, or first start): run the configuration once.
+    if (e.isInteractive && !(await $.store.get(SETUP_KEY))) {
+      await $.store.set(SETUP_KEY, new Date(await $.clock.now()).toISOString())
+      // session.start is awaited before the first prompt, so the prompt is queued from a timer.
+      $.clock.after(500, () => {
+        void $.prompt.submit({ text: FIRST_RUN_PROMPT })
+      })
+    }
     return next(e)
   })
 
