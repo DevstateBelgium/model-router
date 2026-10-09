@@ -15,6 +15,14 @@ export const FIRST_RUN_PROMPT =
 const totals = atom({ plugin: 'model-router', key: 'totals' } as const, {})
 const agents = atom({ plugin: 'model-router', key: 'agents' } as const, {})
 const overrides = atom({ plugin: 'model-router', key: 'overrides' } as const, 0)
+const auto = atom({ plugin: 'model-router', key: 'auto' } as const, { on: false, loaded: false })
+
+// Automatic mode adds one hidden note to each typed prompt; the full skill loads once, later prompts get a short reminder.
+export const AUTO_LOAD =
+  'model-router automatic mode is on: invoke the model-router:run skill with the Skill tool and handle this request by its rules.'
+export const AUTO_REMIND =
+  'model-router automatic mode is on: follow the model-router:run instructions already loaded. Load them again with the Skill tool if they are no longer in context (for example after a compact).'
+const AUTO_ORIGINS = new Set(['composer', 'bridge', 'sdk'])
 
 let prices: Record<string, Price> = {}
 
@@ -56,11 +64,11 @@ const tierName = (type: string) => type.replace(/^model-router:/, '')
 const money = (n: number) => `$${n < 10 ? n.toFixed(3) : n.toFixed(2)}`
 const kTok = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n))
 
-export function summaryLine(rows: RouterRow[]): string {
+export function summaryLine(rows: RouterRow[], autoOn = false): string {
   const total = rows.reduce((s, r) => s + r.usd, 0)
   const sub = rows.filter(r => r.who !== 'orchestrator').reduce((s, r) => s + r.usd, 0)
   const spawned = new Set(rows.filter(r => r.who !== 'orchestrator').map(r => r.who)).size
-  return `router ${money(total)} · subagents ${money(sub)}${spawned ? ` (${spawned} tier${spawned > 1 ? 's' : ''})` : ''}`
+  return `${autoOn ? 'auto · ' : ''}router ${money(total)} · subagents ${money(sub)}${spawned ? ` (${spawned} tier${spawned > 1 ? 's' : ''})` : ''}`
 }
 
 export function table(rows: RouterRow[]): string {
@@ -81,6 +89,8 @@ export const register: Register = on => {
     } catch {
       prices = {}
     }
+    // Automatic mode lasts one session.
+    await update($, auto, () => ({ on: false, loaded: false }))
     try {
       await $.command.register({ name: 'router', description: 'model-router: live cost per tier for this session and the last 7 days' })
       await $.command.register({ name: 'model-router', description: 'model-router: route a task across the tiers (same as /model-router:run)', argumentHint: '<task>' })
@@ -121,7 +131,7 @@ export const register: Register = on => {
       }
       const usage = res.usage
       const rows = await update($, totals, t => addUsage(t ?? {}, who, usage, priceFor(prices, usage.model)))
-      $.ui.status(summaryLine(Object.values(rows)))
+      $.ui.status(summaryLine(Object.values(rows), (await read($, auto)).on))
     }
     return res
   })
@@ -148,6 +158,26 @@ export const register: Register = on => {
       void $.command.run({ command: 'model-router:run', args: e.args }).catch(() => {})
     })
     return {}
+  })
+
+  // /model-router:start and :stop are plugin skills (mod command names cannot hold a colon); answering here runs no model turn.
+  on('command.run', { command: 'model-router:start' }, async $ => {
+    await update($, auto, () => ({ on: true, loaded: false }))
+    $.ui.status(summaryLine(Object.values(await read($, totals)), true))
+    return { text: 'Automatic mode on for this session. Every prompt you type is routed across the tiers. /model-router:stop turns it off.' }
+  })
+
+  on('command.run', { command: 'model-router:stop' }, async $ => {
+    await update($, auto, () => ({ on: false, loaded: false }))
+    $.ui.status(summaryLine(Object.values(await read($, totals))))
+    return { text: 'Automatic mode off. /model-router <task> still routes a single task.' }
+  })
+
+  on('prompt.submit', async ($, e, next) => {
+    const mode = await read($, auto)
+    if (!mode.on || !AUTO_ORIGINS.has(e.origin.kind) || e.text.trimStart().startsWith('/')) return next(e)
+    await update($, auto, () => ({ on: true, loaded: true }))
+    return next({ ...e, context: [...(e.context ?? []), mode.loaded ? AUTO_REMIND : AUTO_LOAD] })
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {

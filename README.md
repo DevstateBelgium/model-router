@@ -54,6 +54,8 @@ Requirements: a recent Claude Code (tested on 2.1.292). Node.js 18+ on PATH for 
 ```
 Ask "which model should do X?" to get a routing suggestion without running anything. Orchestration works best when the main session runs Claude Opus 5.5 at xhigh effort, because the orchestrator does the planning and verification.
 
+**Automatic mode.** Type `/model-router:start` once, and every prompt you type after that is routed, without a prefix. The status line starts with `auto ·` while it is on. `/model-router:stop` turns it off. It lasts for the current session only, so each new session starts with it off. Prompts that start with a slash command are left alone, and `/model-router <task>` keeps working as a one-off without changing the mode. The first routed prompt loads the skill; later prompts get a short reminder, so the skill text is not repeated every turn. Needs the mod.
+
 **What happens during a run.** Claude splits the request into tasks, each with the files it may touch and an acceptance check. Each task goes to the cheapest tier that fits:
 
 | Task looks like | Tier |
@@ -85,6 +87,7 @@ Independent tasks run in parallel. Claude checks every result itself (reads the 
 | Mod (`hooks/router.tsx`) | Runs inside Claude Code (needs v2.1.287+, otherwise ignored). Drops a `model` override on `model-router:*` spawns so the pinned model and effort always run. Meters every model request, orchestrator included, and shows `router $… · subagents $…` in the status line. Keeps per-session totals across sessions. |
 | `/router` | Mod command. Opens a pane with this session's cost per tier and model, plus the last 7 days. Answers instantly with no model turn, and also works in `claude -p`. |
 | `/model-router <task>` | Mod command. Short form of `/model-router:run`: forwards the task to the skill. Without the mod, use `/model-router:run`. |
+| `/model-router:start`, `/model-router:stop` | Turn automatic mode on or off for this session. The mod answers them directly, with no model turn. |
 | `/model-router:stats [days]` | Real cost per subagent run, from telemetry (works without the mod). |
 | `/model-router:setup [owner/repo \| local]` | First-run configuration, also runnable any time: prerequisite check, then an optional private knowledge repo (created and seeded after confirmation). |
 | `scripts/install.mjs` | Cross-platform installer. `--live` makes the skill and agents work in the running session, cloud sessions included. |

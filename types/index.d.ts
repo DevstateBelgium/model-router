@@ -21,6 +21,7 @@ declare module 'claude-code' {
       totals: Record<string, RouterRow>;
       agents: Record<string, string>;
       overrides: number;
+      auto: { on: boolean; loaded: boolean };
     };
   }
 }
