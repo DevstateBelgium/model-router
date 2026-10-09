@@ -122,3 +122,17 @@ describe('agent.spawn', () => {
     expect(seen).toBe('opus')
   })
 })
+
+describe('/model-router', () => {
+  test('forwards its arguments to /model-router:run', async ($, on) => {
+    const clock = mock.clock(on)
+    const ran: { command: string; args: string }[] = []
+    on('command.run', ($, e) => {
+      ran.push({ command: e.command, args: e.args })
+      return {}
+    })
+    await $.command.run({ command: 'model-router', args: 'add tests for utils' })
+    await clock.advance(10)
+    expect(ran).toEqual([{ command: 'model-router:run', args: 'add tests for utils' }])
+  })
+})

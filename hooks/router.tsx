@@ -83,6 +83,7 @@ export const register: Register = on => {
     }
     try {
       await $.command.register({ name: 'router', description: 'model-router: live cost per tier for this session and the last 7 days' })
+      await $.command.register({ name: 'model-router', description: 'model-router: route a task across the tiers (same as /model-router:run)', argumentHint: '<task>' })
     } catch {}
     // First load in an interactive session (install, enable, or first start): run the configuration once.
     if (e.isInteractive && !(await $.store.get(SETUP_KEY))) {
@@ -138,6 +139,15 @@ export const register: Register = on => {
     const rows = Object.values(await read($, totals))
     await $.ui.open({ id: PANE, title: 'model-router' })
     return { text: table(rows) }
+  })
+
+  // Plugin skills are always namespaced, so the short name forwards to the skill.
+  // $.command.run rejects inside the hook this command waits on, so it is queued from a timer.
+  on('command.run', { command: 'model-router' }, async ($, e) => {
+    $.clock.after(0, () => {
+      void $.command.run({ command: 'model-router:run', args: e.args }).catch(() => {})
+    })
+    return {}
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {

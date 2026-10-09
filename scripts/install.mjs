@@ -92,9 +92,9 @@ function withMarker(markdown) {
 function renderSkill() {
   const root = fwd(target);
   const data = fwd(dataDir);
-  let text = fs.readFileSync(path.join(target, 'skills', 'model-router', 'SKILL.md'), 'utf8');
+  let text = fs.readFileSync(path.join(target, 'skills', 'run', 'SKILL.md'), 'utf8');
   text = text
-    .replace(/^name: model-router$/m, `name: ${SHIM_SKILL_DIR}`)
+    .replace(/^name: run$/m, `name: ${SHIM_SKILL_DIR}`)
     .replace(/^description: /m, 'description: (Live install, active until the model-router plugin loads.) ')
     .replaceAll('${CLAUDE_PLUGIN_DATA}', data)
     .replaceAll('${CLAUDE_PLUGIN_ROOT}', root)

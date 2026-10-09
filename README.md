@@ -46,16 +46,45 @@ A cloud session starts from a fresh clone of your repository, and Claude Code lo
 
 Requirements: a recent Claude Code (tested on 2.1.292). Node.js 18+ on PATH for the hooks and scripts. Without Node.js the skill and agents still work, but automatic telemetry and push/pull are off. `gh` is needed only for push/pull.
 
+## How to use it
+
+**Start a task.** Ask for the work as you normally would. The skill loads by itself when Claude splits multi-step work across subagents. To force it, start the request with `/model-router` (or `/model-router:run` when the mod is not loaded):
+```
+/model-router move the date helpers into utils/ and add tests
+```
+Ask "which model should do X?" to get a routing suggestion without running anything. Orchestration works best when the main session runs Claude Opus 5.5 at xhigh effort, because the orchestrator does the planning and verification.
+
+**What happens during a run.** Claude splits the request into tasks, each with the files it may touch and an acceptance check. Each task goes to the cheapest tier that fits:
+
+| Task looks like | Tier |
+|---|---|
+| Reading, searching, renames, boilerplate, running tests | scout |
+| Clear spec, 1 to 3 files, a test to pass | builder |
+| Multi-file change, refactor, bug with an unknown cause | engineer |
+| Engineer task that failed once | senior |
+| Trade-off, security-sensitive logic, two failed attempts | architect |
+
+Independent tasks run in parallel. Claude checks every result itself (reads the diff, runs the check). A failed task is retried once with a sharper brief, then moved one tier up. Small edits that take less time to do than to brief are done directly, without a subagent.
+
+**See what it cost.** Type `/router` for this session's cost per tier and model (needs the mod, Claude Code 2.1.287+). `/model-router:stats 7` shows subagent cost over the last 7 days from telemetry, with or without the mod.
+
+**How it learns.** After each verified task, Claude adds one judgment row to `pending-runs.md`: tier, model, effort, whether the check passed, and whether the tier was too strong or too weak. When a run teaches something new, the reply ends with a one-line `Model-router: learned …` note. Once five rows are pending, or one pattern repeats three times, Claude proposes routing rules in `boundaries.md`, marked `(proposed)`. A rule needs at least three consistent rows, and it takes effect only after you push.
+
+**Share what it learned.** With a knowledge repo configured (`/model-router:setup`):
+- `/model-router:push` sends pending rows, telemetry and proposed rules to the repo. It lists the proposed rules first, so you see what goes live.
+- `/model-router:pull` brings in what other machines and cloud sessions learned. The SessionStart summary tells you when the local copy is stale.
+
 ## What you get
 
 | Component | What it does |
 |---|---|
-| `model-router` skill | Orchestration rules: split work, pick a tier, verify, escalate, log. Loads when Claude delegates work. |
+| `/model-router:run` skill | Orchestration rules: split work, pick a tier, verify, escalate, log. Loads when Claude delegates work. |
 | 5 tier agents | `model-router:scout` (Claude Haiku 5.5, medium), `builder` (Claude Sonnet 5.5, high), `engineer` (Claude Opus 5.5, medium), `senior` (Claude Opus 5.5, xhigh), `architect` (Claude Fable 5.1, high). Each pins its model **and effort**. |
 | SessionStart hook | Seeds the data dir on first run, then adds a short summary to context: active boundaries, pending rows, a stale-mirror warning, a model-check reminder. |
 | PostToolUse + SubagentStop hooks | Log every subagent: resolved model, tokens summed over the whole subagent transcript, duration, estimated USD. No model effort needed. |
 | Mod (`hooks/router.tsx`) | Runs inside Claude Code (needs v2.1.287+, otherwise ignored). Drops a `model` override on `model-router:*` spawns so the pinned model and effort always run. Meters every model request, orchestrator included, and shows `router $… · subagents $…` in the status line. Keeps per-session totals across sessions. |
 | `/router` | Mod command. Opens a pane with this session's cost per tier and model, plus the last 7 days. Answers instantly with no model turn, and also works in `claude -p`. |
+| `/model-router <task>` | Mod command. Short form of `/model-router:run`: forwards the task to the skill. Without the mod, use `/model-router:run`. |
 | `/model-router:stats [days]` | Real cost per subagent run, from telemetry (works without the mod). |
 | `/model-router:setup [owner/repo \| local]` | First-run configuration, also runnable any time: prerequisite check, then an optional private knowledge repo (created and seeded after confirmation). |
 | `scripts/install.mjs` | Cross-platform installer. `--live` makes the skill and agents work in the running session, cloud sessions included. |

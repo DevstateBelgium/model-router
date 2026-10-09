@@ -1,5 +1,5 @@
 ---
-name: model-router
+name: run
 description: Orchestrate coding work by delegating each subtask to the cheapest Claude model and effort that can do it reliably (Claude Haiku 5.5, Claude Sonnet 5.5, Claude Opus 5.5, Claude Fable 5.1). Use for any multi-step coding task where subagents are spawned, when the user asks which model to use for a task, or when they want cost and quality balanced. Logs verified outcomes and revises routing only when the evidence supports it.
 ---
 
